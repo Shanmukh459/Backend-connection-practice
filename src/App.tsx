@@ -1,10 +1,6 @@
-import axios from "axios"
 import { useEffect, useState } from "react"
-
-interface User {
-  id: number
-  name: string
-}
+import { CanceledError } from "./services/api-client"
+import userService, { User } from "./services/user-service"
 
 function App() {
   const [users, setUsers] = useState<User[]>([])
@@ -13,22 +9,29 @@ function App() {
 
   useEffect(() => {
     setLoading(true)
-    axios.get("https://jsonplaceholder.typicode.com/users").then((res) => {
-      setLoading(false)
-      setUsers(res.data)
-    })
+    const { request, cancel } = userService.getAll<User>()
+
+    request
+      .then((res) => {
+        setLoading(false)
+        setUsers(res.data)
+      })
+      .catch((err) => {
+        if (err instanceof CanceledError) return
+        setError(err.message)
+        setLoading(false)
+      })
+    return () => cancel()
   }, [])
 
   const deleteUser = (id: number) => {
     const originalUsers = [...users]
     setUsers(users.filter((user) => user.id !== id))
 
-    axios
-      .delete("https://jsonplaceholder.typicode.com/xusers/" + id)
-      .catch((err) => {
-        setError(err.message)
-        setUsers(originalUsers)
-      })
+    userService.delete(id).catch((err) => {
+      setError(err.message)
+      setUsers(originalUsers)
+    })
   }
 
   const addUser = () => {
@@ -36,8 +39,8 @@ function App() {
     const newUser = { id: 0, name: "Shanmukh" }
     setUsers([newUser, ...users])
 
-    axios
-      .post("https://jsonplaceholder.typicode.com/users/", newUser)
+    userService
+      .create(newUser)
       .then(({ data: savedUser }) => setUsers([savedUser, ...users]))
       .catch((err) => {
         setError(err.message)
@@ -45,7 +48,7 @@ function App() {
       })
   }
 
-  const updateUser = (id) => {
+  const updateUser = (id: number) => {
     const originalUsers = [...users]
     setUsers(
       users.map((user) =>
@@ -53,12 +56,10 @@ function App() {
       )
     )
 
-    axios
-      .patch("https://jsonplaceholder.typicode.com/users/" + id)
-      .catch((err) => {
-        setError(err.message)
-        setUsers(originalUsers)
-      })
+    userService.update(id).catch((err) => {
+      setError(err.message)
+      setUsers(originalUsers)
+    })
   }
 
   return (
